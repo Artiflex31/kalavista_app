@@ -9,6 +9,7 @@ class Artwork {
   final int? priceInPaise;
   final String currency;
   final List<String> moods;
+  final List<String> categories;
 
   Artwork({
     required this.id,
@@ -21,6 +22,7 @@ class Artwork {
     this.priceInPaise,
     required this.currency,
     required this.moods,
+    required this.categories,
   });
 
   factory Artwork.fromJson(Map<String, dynamic> json) {
@@ -35,6 +37,7 @@ class Artwork {
       priceInPaise: json['priceInPaise'],
       currency: json['currency'] ?? 'INR',
       moods: List<String>.from(json['moods'] ?? []),
+      categories: List<String>.from(json['categories'] ?? []),
     );
   }
 }

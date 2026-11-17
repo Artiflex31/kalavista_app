@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
+import '../models/category.dart';
+import '../models/artwork.dart';
+import '../services/api_service.dart';
+import 'all_artworks_screen.dart'; // Import karna mat bhoolna
 
 class FilmReelScreen extends StatefulWidget {
   const FilmReelScreen({super.key});
@@ -9,27 +15,34 @@ class FilmReelScreen extends StatefulWidget {
 }
 
 class _FilmReelScreenState extends State<FilmReelScreen> {
-  // PageController: Isse hume scroll ki exact position (page value) milegi
-  final PageController _pageController = PageController(viewportFraction: 0.55);
+  final PageController _pageController = PageController(viewportFraction: 0.8);
   double _currentPage = 0.0;
 
-  final List<Map<String, dynamic>> categories = [
-    {'label': 'Monsoon Studies', 'count': 4, 'color': const Color(0xFF597c9d)},
-    {'label': 'Anime Art', 'count': 6, 'color': const Color(0xFF7757a7)},
-    {'label': 'Portraits', 'count': 3, 'color': const Color(0xFFa96e5c)},
-    {'label': 'Watercolour', 'count': 5, 'color': const Color(0xFF4f8d91)},
-    {'label': 'Charcoal', 'count': 2, 'color': const Color(0xFF3f3a3c)},
-    {'label': 'Realistic', 'count': 7, 'color': const Color(0xFF6c8654)},
-  ];
+  // Ab hum ek saath Categories aur Artworks dono fetch karenge
+  late Future<Map<String, dynamic>> _dataFuture;
 
   @override
   void initState() {
     super.initState();
+    _loadData();
+
     _pageController.addListener(() {
       setState(() {
         _currentPage = _pageController.page ?? 0.0;
       });
     });
+  }
+
+  void _loadData() {
+    // Future.wait ka use karke dono API ek saath call ki
+    _dataFuture =
+        Future.wait([ApiService.getCategories(), ApiService.getArtworks()])
+            .then((results) {
+              return {
+                'categories': results[0] as List<Category>,
+                'artworks': results[1] as List<Artwork>,
+              };
+            });
   }
 
   @override
@@ -38,208 +51,301 @@ class _FilmReelScreenState extends State<FilmReelScreen> {
     super.dispose();
   }
 
+  // ✨ LOGIC: Category image dhundne ka function
+  String? getThumbnailUrl(Category category, List<Artwork> artworks) {
+    // 1. Agar category ki apni image hai, toh wahi use karo
+    if (category.imageUrl != null && category.imageUrl!.isNotEmpty) {
+      return category.imageUrl;
+    }
+
+    // 2. Agar nahi hai, toh us category se juda pehla artwork dhundho
+    final matchingArtwork = artworks.firstWhere(
+      (art) => art.categories.contains(category.slug),
+      orElse: () => artworks
+          .first, // Agar koi artwork match nahi hua, toh sabse pehla utha lo
+    );
+
+    return matchingArtwork.imageUrl;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF050506), // Cinematic Dark Background
-      body: Column(
-        children: [
-          const SizedBox(height: 60),
+      backgroundColor: const Color(0xFF050506),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
 
-          // Heading
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'THE KALAVISTA ARCHIVE',
-                  style: GoogleFonts.manrope(
-                    color: const Color(0xFFe7a962),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
+            // Heading
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    'THE KALAVISTA ARCHIVE',
+                    style: GoogleFonts.manrope(
+                      color: const Color(0xFFe7a962),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'The Film Reel.',
-                  style: GoogleFonts.cormorantGaramond(
-                    color: Colors.white,
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
-                    height: 0.9,
+                  const SizedBox(height: 8),
+                  Text(
+                    'The Category Film.',
+                    style: GoogleFonts.cormorantGaramond(
+                      color: Colors.white,
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
+                      height: 0.9,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          const Spacer(),
+            const SizedBox(height: 20),
 
-          // 3D Film Reel Carousel
-          SizedBox(
-            height: 420, // Height of the carousel area
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // 1. Top Film Reel Sprocket Holes
-                _buildFilmHoles(),
+            Expanded(
+              child: FutureBuilder<Map<String, dynamic>>(
+                future: _dataFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFa84d3f),
+                      ),
+                    );
+                  }
 
-                // 2. The 3D Cards
-                PageView.builder(
-                  controller: _pageController,
-                  itemCount: categories.length,
-                  physics: const BouncingScrollPhysics(),
-                  itemBuilder: (context, index) {
-                    // Math for 3D effect
-                    double value = index - _currentPage;
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        'Error: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    );
+                  }
 
-                    // clamp value so extreme cards don't break
-                    double clampedValue = value.clamp(-1.0, 1.0);
+                  final categories =
+                      snapshot.data!['categories'] as List<Category>;
+                  final artworks = snapshot.data!['artworks'] as List<Artwork>;
 
-                    // Center pop: Scale 1.0 at center, shrinks to 0.7 at sides
-                    double scale = 1.0 - (clampedValue.abs() * 0.3);
+                  if (categories.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'No categories found.',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    );
+                  }
 
-                    // Fade: Opacity 1.0 at center, fades to 0.3 at sides
-                    double opacity = 1.0 - (clampedValue.abs() * 0.7);
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned.fill(
+                        top: 30,
+                        bottom: 30,
+                        child: Container(color: const Color(0xFF1A1A1A)),
+                      ),
+                      Positioned(
+                        top: 40,
+                        left: 0,
+                        right: 0,
+                        child: _buildFilmHoles(),
+                      ),
+                      PageView.builder(
+                        controller: _pageController,
+                        itemCount: categories.length,
+                        physics: const BouncingScrollPhysics(),
+                        itemBuilder: (context, index) {
+                          double value = index - _currentPage;
+                          double clampedValue = value.clamp(-1.0, 1.0);
 
-                    // 3D Rotation: Cards rotate on Y axis to look like a film strip
-                    double rotationY = clampedValue * 0.6; // radians
+                          double scale = 1.0 - (clampedValue.abs() * 0.3);
+                          double opacity = 1.0 - (clampedValue.abs() * 0.7);
+                          double rotationY = clampedValue * 0.5;
 
-                    // Slight rotation on Z for the film twist
-                    double rotationZ = clampedValue * -0.1;
+                          // Yahan humne thumbnail function call kiya
+                          final thumbnailUrl = getThumbnailUrl(
+                            categories[index],
+                            artworks,
+                          );
 
-                    // Translation: Cards on the side dip down slightly
-                    double translationY = clampedValue.abs() * 30;
+                          return Transform(
+                            transform: Matrix4.identity()
+                              ..scale(scale)
+                              ..rotateY(rotationY),
+                            alignment: Alignment.center,
+                            child: Opacity(
+                              opacity: opacity,
+                              child: _buildCard(
+                                categories[index],
+                                thumbnailUrl,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      Positioned(
+                        bottom: 40,
+                        left: 0,
+                        right: 0,
+                        child: _buildFilmHoles(),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
 
-                    return Transform(
-                      transform: Matrix4.identity()
-                        ..scale(scale)
-                        ..translate(0.0, translationY)
-                        ..rotateY(rotationY)
-                        ..rotateZ(rotationZ),
-                      alignment: Alignment.center,
-                      child: Opacity(
-                        opacity: opacity,
-                        child: _buildCard(categories[index], index),
+            // "View All" Button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              child: SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(
+                      color: Color(0xFFa84d3f),
+                      width: 1.5,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AllArtworksScreen(),
                       ),
                     );
                   },
+                  child: Text(
+                    'View All Artworks',
+                    style: GoogleFonts.manrope(
+                      color: const Color(0xFFa84d3f),
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-
-                // 3. Bottom Film Reel Sprocket Holes
-                _buildFilmHoles(),
-              ],
-            ),
-          ),
-
-          const Spacer(),
-
-          // Scroll Hint
-          Padding(
-            padding: const EdgeInsets.only(bottom: 40),
-            child: Text(
-              'SWIPE TO EXPLORE',
-              style: GoogleFonts.manrope(
-                color: Colors.white54,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
               ),
             ),
-          ),
-        ],
+
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                'SWIPE TO EXPLORE',
+                style: GoogleFonts.manrope(
+                  color: Colors.white54,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // Card Design
-  Widget _buildCard(Map<String, dynamic> category, int index) {
+  // _buildCard me ab thumbnailUrl parameter add ho gaya hai
+  Widget _buildCard(Category category, String? thumbnailUrl) {
+    final bool hasImage = thumbnailUrl != null && thumbnailUrl.isNotEmpty;
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10),
-      width: 200,
-      // Portrait Aspect Ratio
-      height: 300,
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 100),
       decoration: BoxDecoration(
-        color: category['color'],
-        borderRadius: BorderRadius.circular(16),
+        color: category.accent,
+        border: Border.all(color: Colors.black, width: 4),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 20,
-            spreadRadius: 2,
-            offset: const Offset(0, 10),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
-      child: Stack(
-        children: [
-          // Film border inside the card
-          Positioned.fill(
-            child: Container(
-              margin: const EdgeInsets.all(6),
+      child: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (hasImage)
+              CachedNetworkImage(
+                imageUrl: thumbnailUrl,
+                fit: BoxFit.cover,
+                placeholder: (context, url) =>
+                    Container(color: category.accent),
+                errorWidget: (context, url, error) =>
+                    Container(color: category.accent),
+              ),
+            Container(
               decoration: BoxDecoration(
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  width: 2,
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.9),
+                  ],
+                  stops: const [0.4, 1.0],
                 ),
-                borderRadius: BorderRadius.circular(12),
               ),
             ),
-          ),
-
-          // Text Content
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${category['count']} works',
-                  style: GoogleFonts.manrope(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Explore Category',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  category['label'],
-                  style: GoogleFonts.cormorantGaramond(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    height: 0.9,
+                  const SizedBox(height: 4),
+                  Text(
+                    category.label,
+                    style: GoogleFonts.cormorantGaramond(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      height: 0.9,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // Film Strip Sprocket Holes (Chhed) Design
   Widget _buildFilmHoles() {
     return SizedBox(
-      height: 20,
+      height: 16,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        physics:
-            const NeverScrollableScrollPhysics(), // Ye khud scroll nahi hoga
-        itemCount: 30,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 40,
         itemBuilder: (context, index) {
           return Container(
-            width: 20,
-            height: 15,
-            margin: const EdgeInsets.symmetric(horizontal: 8),
+            width: 12,
+            height: 12,
+            margin: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A), // Dark hole color
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: Colors.white12),
+              color: const Color(0xFFF5EFE6),
+              borderRadius: BorderRadius.circular(2),
             ),
           );
         },

@@ -4,8 +4,12 @@ import 'package:http/http.dart' as http;
 
 import '../models/artwork.dart';
 
+import 'dart:async';
+
+import '../models/category.dart';
+
 class ApiService {
-  static const String baseUrl = 'https://kalavista-production.up.railway.app';
+  static const String baseUrl = 'https://kalavista.onrender.com';
 
   // 1. Saari paintings laane ke liye
   static Future<List<Artwork>> getArtworks() async {
@@ -62,6 +66,25 @@ class ApiService {
       return true;
     } else {
       throw Exception('Failed to submit commission');
+    }
+  }
+
+  // 4. Categories fetch karne ke liye
+  static Future<List<Category>> getCategories() async {
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/api/categories'))
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        List<dynamic> list = data['data'];
+        return list.map((json) => Category.fromJson(json)).toList();
+      } else {
+        throw Exception('Server returned status: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Network Error: $e');
     }
   }
 }

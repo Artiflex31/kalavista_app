@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'gallery_screen.dart';
 import 'commissions_screen.dart';
 import 'ask_kala_screen.dart';
+import 'film_reel_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -14,18 +15,17 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  // Ye hamari 3 main screens ki list hai
+  // 4 Screens ka sahi order
   final List<Widget> _screens = [
-    const GalleryScreen(),
-    const CommissionsScreen(),
-    const AskKalaScreen(),
+    const FilmReelScreen(), // 0: Explore (Film Reel)
+    const GalleryScreen(), // 1: Gallery (All Artworks)
+    const CommissionsScreen(), // 2: Commissions Form
+    const AskKalaScreen(), // 3: AI Chat
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // IndexedStack ka use isliye karte hain taaki jab hum tab change karein,
-      // toh purane tab ka data (jaise chat history ya scroll position) delete na ho.
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
@@ -35,8 +35,17 @@ class _MainScreenState extends State<MainScreen> {
           });
         },
         backgroundColor: const Color(0xFFF5EFE6),
-        indicatorColor: const Color(0xFFa84d3f).withOpacity(0.2),
+        indicatorColor: const Color(0xFFa84d3f).withValues(alpha: 0.2),
+        // 4 Destinations (Icons)
         destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.auto_awesome_mosaic, color: Colors.black54),
+            selectedIcon: Icon(
+              Icons.auto_awesome_mosaic,
+              color: Color(0xFFa84d3f),
+            ),
+            label: 'Explore',
+          ),
           NavigationDestination(
             icon: Icon(Icons.grid_view, color: Colors.black54),
             selectedIcon: Icon(Icons.grid_view, color: Color(0xFFa84d3f)),
